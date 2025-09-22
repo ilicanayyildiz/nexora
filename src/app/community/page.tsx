@@ -22,30 +22,55 @@ export default function CommunityPage() {
 
   useEffect(() => {
     const loadCreators = async () => {
-      // Get creators with their collection and NFT counts
-      const { data } = await supabase
-        .from("profiles")
-        .select(`
-          id, username, full_name, avatar_url, bio, created_at,
-          collections:collections(count),
-          nfts:nfts(count)
-        `)
-        .not('username', 'is', null)
-        .order("created_at", { ascending: false });
-      
-      // Transform the data to include counts
-      const transformedCreators = (data || []).map(creator => ({
-        id: creator.id,
-        username: creator.username,
-        full_name: creator.full_name,
-        avatar_url: creator.avatar_url,
-        bio: creator.bio,
-        collections_count: creator.collections?.[0]?.count || 0,
-        nfts_count: creator.nfts?.[0]?.count || 0,
-      }));
-      
-      setCreators(transformedCreators);
-      setLoading(false);
+      try {
+        // Get creators with their collection and NFT counts
+        const { data: profiles, error } = await supabase
+          .from("profiles")
+          .select(`
+            id, username, full_name, avatar_url, bio, created_at
+          `)
+          .not('username', 'is', null)
+          .order("created_at", { ascending: false });
+
+        if (error) {
+          console.error('Error fetching profiles:', error);
+          setLoading(false);
+          return;
+        }
+
+        // Get collection counts for each creator
+        const creatorsWithCounts = await Promise.all(
+          (profiles || []).map(async (creator) => {
+            // Get collections count
+            const { count: collectionsCount } = await supabase
+              .from('collections')
+              .select('*', { count: 'exact', head: true })
+              .eq('creator_id', creator.id);
+
+            // Get NFTs count
+            const { count: nftsCount } = await supabase
+              .from('nfts')
+              .select('*', { count: 'exact', head: true })
+              .eq('creator_id', creator.id);
+
+            return {
+              id: creator.id,
+              username: creator.username,
+              full_name: creator.full_name,
+              avatar_url: creator.avatar_url,
+              bio: creator.bio,
+              collections_count: collectionsCount || 0,
+              nfts_count: nftsCount || 0,
+            };
+          })
+        );
+        
+        setCreators(creatorsWithCounts);
+        setLoading(false);
+      } catch (error) {
+        console.error('Error loading creators:', error);
+        setLoading(false);
+      }
     };
     void loadCreators();
   }, []);
@@ -76,14 +101,8 @@ export default function CommunityPage() {
 
       {/* Header */}
       <div className="text-center mb-12">
-        <div className="w-24 h-24 mx-auto mb-6 rounded-2xl overflow-hidden">
-          <Image 
-            src="https://images.unsplash.com/photo-1639322537228-f912e1778716?ixlib=rb-4.0.3&auto=format&fit=crop&w=200&q=80" 
-            alt="Community" 
-            width={96} 
-            height={96} 
-            className="w-full h-full object-cover" 
-          />
+        <div className="w-24 h-24 mx-auto mb-6 rounded-2xl overflow-hidden bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
+          <span className="text-4xl">👥</span>
         </div>
         <h1 className="text-4xl font-bold mb-4">Community</h1>
         <p className="text-white/70 text-lg">Connect with creators and collectors</p>

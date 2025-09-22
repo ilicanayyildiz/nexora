@@ -10,8 +10,6 @@ export default function SignUpPage() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [otpSent, setOtpSent] = useState(false);
-
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -40,22 +38,6 @@ export default function SignUpPage() {
         window.location.href = "/dashboard";
       }, 2000);
     }
-  };
-
-  const onMagicLink = async () => {
-    setLoading(true);
-    setError(null);
-    const { error } = await supabase.auth.signInWithOtp({ email, options: { emailRedirectTo: `${window.location.origin}/dashboard` } });
-    setLoading(false);
-    if (error) setError(error.message); else setOtpSent(true);
-  };
-
-  const onOAuth = async (provider: "google" | "github") => {
-    setLoading(true);
-    setError(null);
-    const { error } = await supabase.auth.signInWithOAuth({ provider, options: { redirectTo: `${window.location.origin}/dashboard` } });
-    setLoading(false);
-    if (error) setError(error.message);
   };
 
   return (
@@ -95,14 +77,6 @@ export default function SignUpPage() {
       <p className="mt-4 text-sm text-white/70">
         Already have an account? <Link className="underline" href="/signin">Sign In</Link>
       </p>
-      <div className="mt-6 grid gap-3">
-        {otpSent && <div className="text-sm text-emerald-400">Check your email for the magic link.</div>}
-        <button onClick={onMagicLink} disabled={loading || !email} className="h-11 rounded-md border border-white/20 hover:bg-white/10 disabled:opacity-60">Send magic link</button>
-        <div className="flex items-center gap-3">
-          <button onClick={() => onOAuth("google")} disabled={loading} className="flex-1 h-11 rounded-md border border-white/20 hover:bg-white/10">Continue with Google</button>
-          <button onClick={() => onOAuth("github")} disabled={loading} className="flex-1 h-11 rounded-md border border-white/20 hover:bg-white/10">Continue with GitHub</button>
-        </div>
-      </div>
     </div>
   );
 }

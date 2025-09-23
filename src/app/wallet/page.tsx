@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
 
 interface WalletInfo {
@@ -136,9 +137,9 @@ export default function WalletPage() {
             </div>
             <p className="text-white/70 mb-4">Available for NFT purchases</p>
             <div className="flex gap-3">
-              <a href="/checkout" className="flex-1 h-10 rounded-lg border border-white/20 text-sm font-medium hover:bg-white/10 transition-colors flex items-center justify-center">
+              <Link href="/checkout" className="flex-1 h-10 rounded-lg border border-white/20 text-sm font-medium hover:bg-white/10 transition-colors flex items-center justify-center">
                 💳 Finance
-              </a>
+              </Link>
               <button 
                 onClick={() => document.getElementById('withdraw-modal')?.classList.remove('hidden')}
                 className="flex-1 h-10 rounded-lg border border-white/20 text-sm font-medium hover:bg-white/10 transition-colors"

@@ -42,6 +42,7 @@ export default function DashboardPage() {
   const [nfts, setNfts] = useState<any[]>([]);
   const [formLoading, setFormLoading] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [priceById, setPriceById] = useState<Record<string, string>>({});
 
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -63,12 +64,7 @@ export default function DashboardPage() {
       setUserId(session.user.id);
       setEmail(session.user.email ?? null);
       
-      // Fetch CSRF token for API calls
-      try {
-        await apiClient.csrfManager.getToken();
-      } catch (error) {
-        console.error('Failed to fetch CSRF token:', error);
-      }
+      // CSRF fetch not required here; API calls are direct Supabase
 
       // Ensure CSRF cookie/token is set for secure API calls
       try {
@@ -261,13 +257,25 @@ export default function DashboardPage() {
     }
   };
 
-  const listNftForSale = async (nftId: string, price: number) => {
+  const listNftForSale = async (nftId: string) => {
     try {
-      console.log('Listing NFT:', nftId, 'with price:', price);
+      const raw = (priceById[nftId] ?? '').toString();
+      const normalized = raw.replace(',', '.').replace(/[^0-9.]/g, '').trim();
+      const priceNum = Number(normalized);
+      console.log('Listing NFT:', nftId, 'raw:', raw, 'normalized:', normalized, 'price:', priceNum);
       
+      if (normalized === '' || !Number.isFinite(priceNum)) {
+        alert('Please enter a valid price');
+        return;
+      }
+      if (priceNum <= 0) {
+        alert('Price must be greater than 0');
+        return;
+      }
+
       // Validate price
       const validator = new FormValidator();
-      validator.number(price, 'Price', 0.01, 10000);
+      validator.number(priceNum, 'Price', 0.01, 10000);
       const validation = validator.getResult();
       
       if (!validation.valid) {
@@ -275,19 +283,16 @@ export default function DashboardPage() {
         return;
       }
       
-      // Update NFT directly with Supabase (bypass API)
-      const { error: updateError } = await supabase
-        .from('nfts')
-        .update({
-          price: price,
-          is_listed: true
-        })
-        .eq('id', nftId);
+      // Update via RPC to avoid RLS edge cases and decimal coercion
+      const { data: updated, error: rpcError } = await supabase.rpc('list_nft', {
+        p_nft: nftId,
+        p_price: Number(normalized),
+      });
       
-      console.log('Supabase update error:', updateError);
+      console.log('Supabase RPC error:', rpcError);
       
-      if (updateError) {
-        throw new Error(updateError.message || 'Failed to list NFT');
+      if (rpcError) {
+        throw new Error(rpcError.message || 'Failed to list NFT');
       }
       
       // Refresh NFTs
@@ -300,6 +305,7 @@ export default function DashboardPage() {
         .eq("creator_id", userId)
         .order("created_at", { ascending: false });
       setNfts((nftData as any[]) ?? []);
+      setPriceById((prev) => ({ ...prev, [nftId]: '' }));
       
       alert("NFT listed for sale successfully!");
     } catch (error: any) {
@@ -532,41 +538,32 @@ export default function DashboardPage() {
                     ) : (
                       <div className="flex gap-2">
                         <input 
-                          type="number" 
-                          placeholder="Price" 
-                          id={`price-${nft.id}`}
-                          step="0.01"
-                          min="0.01"
+                          type="text"
+                          placeholder="Price"
+                          value={priceById[nft.id] ?? ''}
+                          inputMode="decimal"
                           className="flex-1 h-8 rounded text-xs px-2 border border-white/15 bg-transparent outline-none focus:ring-1 focus:ring-white/20"
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                              const raw = (e.target as HTMLInputElement).value || '';
-                              const normalized = raw.replace(',', '.').replace(/[^0-9.]/g, '');
-                              const price = Number(normalized);
-                              if (Number.isFinite(price) && price > 0) {
-                                listNftForSale(nft.id, price);
-                              }
-                            }
+                          onChange={(e) => {
+                            const v = e.target.value;
+                            setPriceById((prev) => ({ ...prev, [nft.id]: v }));
                           }}
                         />
-                        <button 
-                          onClick={() => {
-                            const input = document.getElementById(`price-${nft.id}`) as HTMLInputElement | null;
-                            const raw = input?.value || '';
-                            const normalized = raw.replace(',', '.').replace(/[^0-9.]/g, '');
-                            const price = Number(normalized);
-                            console.log('Button clicked - input value:', raw, 'normalized:', normalized, 'price:', price);
-                            if (Number.isFinite(price) && price > 0) {
-                              listNftForSale(nft.id, price);
-                            } else {
-                              alert('Please enter a valid price');
-                            }
-                          }}
-                          className="h-8 rounded px-3 text-xs font-semibold text-black"
-                          style={{ backgroundColor: 'var(--accent)' }}
-                        >
-                          List
-                        </button>
+                        {(() => {
+                          const raw = (priceById[nft.id] ?? '').toString();
+                          const normalized = raw.replace(',', '.').replace(/[^0-9.]/g, '').trim();
+                          const parsed = Number(normalized);
+                          const disabled = normalized === '' || !Number.isFinite(parsed) || parsed <= 0;
+                          return (
+                            <button 
+                              onClick={() => listNftForSale(nft.id)}
+                              disabled={disabled}
+                              className="h-8 rounded px-3 text-xs font-semibold text-black"
+                              style={{ backgroundColor: 'var(--accent)' }}
+                            >
+                              List
+                            </button>
+                          );
+                        })()}
                       </div>
                     )}
                   </div>

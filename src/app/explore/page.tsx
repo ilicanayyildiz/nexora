@@ -65,6 +65,8 @@ export default function ExplorePage() {
         creator:profiles!nfts_creator_id_fkey(username)
       `)
       .eq("is_listed", true)
+      .or('is_sold.is.null,is_sold.eq.false')
+      .gt("price", 0)
       .order("created_at", { ascending: false });
     
     setNfts((data as NFT[]) ?? []);
@@ -81,31 +83,9 @@ export default function ExplorePage() {
     }
     setBuying(nftId);
     try {
-      // Create order
-      const { data: order, error: orderError } = await supabase
-        .from("orders")
-        .insert({ buyer_id: userId, nft_id: nftId, price })
-        .select("id")
-        .single();
-      if (orderError) throw orderError;
-
-      // Debit balance
-      const { error: debitError } = await supabase.rpc("debit_balance", {
-        p_user: userId,
-        p_amount: price,
-        p_ref: order.id,
-      });
-      if (debitError) throw debitError;
-
-      // Transfer ownership
-      const { error: transferError } = await supabase
-        .from("nfts")
-        .update({ owner_id: userId, is_listed: false })
-        .eq("id", nftId);
-      if (transferError) throw transferError;
-
-      // Update order status
-      await supabase.from("orders").update({ status: "paid" }).eq("id", order.id);
+      // Perform atomic purchase via RPC (handles debit/credit/transfer under RLS)
+      const { data, error } = await supabase.rpc('purchase_nft', { p_nft: nftId });
+      if (error) throw error;
 
       // Refresh data
       await loadNfts();

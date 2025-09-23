@@ -52,6 +52,9 @@ export default function SignInPage() {
             required
             value={email}
             onChange={(e) => setEmail(e.target.value)}
+            suppressHydrationWarning
+            autoComplete="email"
+            inputMode="email"
             className="h-11 rounded-md border border-white/15 bg-transparent px-3 outline-none focus:ring-2 focus:ring-white/20"
           />
         </label>
@@ -62,6 +65,8 @@ export default function SignInPage() {
             required
             value={password}
             onChange={(e) => setPassword(e.target.value)}
+            suppressHydrationWarning
+            autoComplete="current-password"
             className="h-11 rounded-md border border-white/15 bg-transparent px-3 outline-none focus:ring-2 focus:ring-white/20"
           />
         </label>

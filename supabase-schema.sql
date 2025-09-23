@@ -212,8 +212,12 @@ CREATE POLICY "buyer inserts orders" ON public.orders FOR INSERT WITH CHECK (aut
 
 -- FUNCTIONS: atomic credit/debit with ledger
 CREATE OR REPLACE FUNCTION public.credit_balance(p_user UUID, p_amount NUMERIC, p_ref TEXT)
-RETURNS VOID LANGUAGE plpgsql AS $$
+RETURNS VOID
+SECURITY DEFINER
+SET search_path = public
+LANGUAGE plpgsql AS $$
 BEGIN
+  -- Credit creator's ledger and balance (bypass RLS via SECURITY DEFINER)
   INSERT INTO public.ledger(user_id, type, amount, ref) VALUES (p_user, 'credit', p_amount, p_ref);
   INSERT INTO public.balances(user_id, amount)
   VALUES (p_user, p_amount)
@@ -221,11 +225,19 @@ BEGIN
 END;$$;
 
 CREATE OR REPLACE FUNCTION public.debit_balance(p_user UUID, p_amount NUMERIC, p_ref TEXT)
-RETURNS VOID LANGUAGE plpgsql AS $$
+RETURNS VOID
+SECURITY DEFINER
+SET search_path = public
+LANGUAGE plpgsql AS $$
 BEGIN
+  -- Debit user's ledger and balance (bypass RLS via SECURITY DEFINER)
   INSERT INTO public.ledger(user_id, type, amount, ref) VALUES (p_user, 'debit', p_amount, p_ref);
   UPDATE public.balances SET amount = amount - p_amount, updated_at = NOW() WHERE user_id = p_user AND amount >= p_amount;
 END;$$;
+
+-- Allow authenticated users to call balance mutation functions
+GRANT EXECUTE ON FUNCTION public.credit_balance(UUID, NUMERIC, TEXT) TO authenticated, anon;
+GRANT EXECUTE ON FUNCTION public.debit_balance(UUID, NUMERIC, TEXT) TO authenticated, anon;
 
 -- Trigger to keep balances.updated_at fresh
 CREATE TRIGGER update_balances_updated_at BEFORE UPDATE ON public.balances FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();

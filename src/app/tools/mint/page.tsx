@@ -17,7 +17,6 @@ export default function MintToolsPage() {
   const [userId, setUserId] = useState<string | null>(null);
   const [collections, setCollections] = useState<Collection[]>([]);
   const [step, setStep] = useState(1);
-  const [walletConnected, setWalletConnected] = useState(false);
 
   // Step 1
   const [selectedCollectionId, setSelectedCollectionId] = useState<string | null>(null);
@@ -40,6 +39,24 @@ export default function MintToolsPage() {
     if (!userId || !selectedCollectionId || !nftName) return;
     
     try {
+      // Check if user has crypto wallet address set up
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("crypto_wallet_address, username, full_name")
+        .eq("id", userId)
+        .single();
+
+      console.log("Profile data:", profile);
+      console.log("Crypto wallet address:", profile?.crypto_wallet_address);
+
+      if (!profile?.crypto_wallet_address) {
+        alert(
+          `You must add a crypto wallet address to your profile before minting.\n\n` +
+          `Go to Profile → Edit → Crypto Wallet Settings and set your address.`
+        );
+        window.location.href = "/profile/edit";
+        return;
+      }
       // Get the next token ID for this collection
       const { data: existingNfts } = await supabase
         .from("nfts")
@@ -172,17 +189,6 @@ export default function MintToolsPage() {
 
         {/* Main content */}
         <div>
-          {/* Connect wallet banner */}
-          {!walletConnected && (
-            <div className="rounded-2xl border border-white/10 bg-white/5 p-6">
-              <h2 className="text-xl font-semibold">You need to connect your wallet to mint NFTs</h2>
-              <p className="mt-1 text-white/70">Please connect your wallet to Nexora below</p>
-              <div className="mt-4">
-                <button onClick={() => setWalletConnected(true)} className="inline-flex h-10 items-center rounded-md px-4 font-semibold text-black hover:opacity-90" style={{ backgroundColor: 'var(--accent)' }}>Connect Wallet (demo)</button>
-              </div>
-            </div>
-          )}
-
           {/* Header */}
           <div className="mt-8 flex items-center justify-between">
             <h1 className="text-3xl font-bold">Mint</h1>
@@ -204,8 +210,8 @@ export default function MintToolsPage() {
             })}
           </ol>
 
-          {/* Step content: only when wallet + session connected */}
-          {userId && walletConnected ? (
+          {/* Step content: only when user is logged in */}
+          {userId ? (
             <div className="mt-6 rounded-2xl border border-white/10 p-6">
         {step === 1 && (
           <div className="grid gap-4">
@@ -296,7 +302,7 @@ export default function MintToolsPage() {
             </div>
           ) : (
             <div className="mt-6 rounded-2xl border border-white/10 p-6 text-white/70 text-sm">
-              Please connect your wallet to proceed with minting steps.
+              Please sign in to proceed with minting steps.
             </div>
           )}
         </div>

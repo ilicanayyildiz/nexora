@@ -70,6 +70,29 @@ export default function CreateCollectionPage() {
     try {
       await ensureProfile();
 
+      // Check if user has crypto wallet address set up
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("crypto_wallet_address, username, full_name")
+        .eq("id", userId)
+        .single();
+
+      if (!profile?.crypto_wallet_address) {
+        const confirm = window.confirm(
+          `⚠️ Warning: You haven't set up your crypto wallet address yet.\n\n` +
+          `Without a wallet address, you won't be able to receive payments when your NFTs are sold.\n\n` +
+          `Would you like to:\n` +
+          `1. Continue creating collection (you can set up your wallet later)\n` +
+          `2. Go to profile settings to add your wallet address first\n\n` +
+          `Click OK to continue, or Cancel to go to profile settings.`
+        );
+        
+        if (!confirm) {
+          window.location.href = "/profile/edit";
+          return;
+        }
+      }
+
       const [uploadedImageUrl, uploadedBannerUrl] = await Promise.all([
         uploadViaApiIfAny('collection-image', imageFile),
         uploadViaApiIfAny('banner', bannerFile),

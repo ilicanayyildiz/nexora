@@ -14,6 +14,9 @@ type Profile = {
   website: string | null;
   twitter: string | null;
   instagram: string | null;
+  crypto_wallet_address: string | null;
+  preferred_payment_method: string | null;
+  is_kyc_verified: boolean;
 };
 
 export default function EditProfilePage() {
@@ -32,6 +35,9 @@ export default function EditProfilePage() {
     website: "",
     twitter: "",
     instagram: "",
+    crypto_wallet_address: "",
+    preferred_payment_method: "",
+    is_kyc_verified: false,
   });
 
   useEffect(() => {
@@ -74,6 +80,10 @@ export default function EditProfilePage() {
           website: profile.website || null,
           twitter: profile.twitter || null,
           instagram: profile.instagram || null,
+          // New payment fields
+          crypto_wallet_address: profile.crypto_wallet_address || null,
+          preferred_payment_method: profile.preferred_payment_method || null,
+          is_kyc_verified: Boolean(profile.is_kyc_verified),
         })
         .eq("id", profile.id);
       
@@ -194,6 +204,53 @@ export default function EditProfilePage() {
                 className="h-12 rounded-lg border border-white/15 bg-transparent px-4 outline-none focus:ring-2 focus:ring-white/20" 
               />
             </label>
+          </div>
+
+          {/* Crypto Wallet Section */}
+          <div className="mt-8 p-6 rounded-lg border border-white/10 bg-white/5">
+            <h3 className="text-lg font-semibold mb-4">Crypto Wallet Settings</h3>
+            <div className="grid gap-4">
+              <label className="grid gap-2 text-sm">
+                <span>Crypto Wallet Address</span>
+                <input 
+                  value={profile.crypto_wallet_address || ""} 
+                  onChange={(e) => setProfile({...profile, crypto_wallet_address: e.target.value})}
+                  placeholder="0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6" 
+                  className="h-12 rounded-lg border border-white/15 bg-transparent px-4 outline-none focus:ring-2 focus:ring-white/20 font-mono text-sm" 
+                />
+                <div className="text-xs text-white/60">
+                  Enter your Ethereum wallet address to receive payments from NFT sales
+                </div>
+              </label>
+              
+              <label className="grid gap-2 text-sm">
+                <span>Preferred Payment Method</span>
+                <select 
+                  value={profile.preferred_payment_method || ""} 
+                  onChange={(e) => setProfile({...profile, preferred_payment_method: e.target.value})}
+                  className="h-12 rounded-lg border border-white/15 bg-transparent px-4 outline-none focus:ring-2 focus:ring-white/20"
+                >
+                  <option value="">Select payment method</option>
+                  <option value="card">Credit Card</option>
+                  <option value="crypto">Crypto Payment</option>
+                  <option value="web3">Web3 Wallet</option>
+                  <option value="bank">Bank Transfer</option>
+                </select>
+              </label>
+
+              <div className="flex items-center gap-3">
+                <input 
+                  type="checkbox" 
+                  id="kyc_verified"
+                  checked={profile.is_kyc_verified}
+                  onChange={(e) => setProfile({...profile, is_kyc_verified: e.target.checked})}
+                  className="w-4 h-4 rounded border border-white/15 bg-transparent"
+                />
+                <label htmlFor="kyc_verified" className="text-sm">
+                  KYC Verified (for higher transaction limits)
+                </label>
+              </div>
+            </div>
           </div>
         </div>
         

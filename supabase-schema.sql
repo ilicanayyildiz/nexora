@@ -14,6 +14,9 @@ CREATE TABLE public.profiles (
   website TEXT,
   twitter TEXT,
   instagram TEXT,
+  crypto_wallet_address TEXT,
+  preferred_payment_method TEXT,
+  is_kyc_verified BOOLEAN DEFAULT FALSE,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );

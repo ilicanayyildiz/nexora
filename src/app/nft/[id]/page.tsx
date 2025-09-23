@@ -89,6 +89,18 @@ export default function NFTDetailPage() {
     
     setBuying(true);
     try {
+      // Get creator's crypto wallet address
+      const { data: creator } = await supabase
+        .from("profiles")
+        .select("crypto_wallet_address, username, full_name")
+        .eq("id", nft.creator_id)
+        .single();
+
+      if (!creator?.crypto_wallet_address) {
+        alert("Creator has not set up their crypto wallet address. Cannot process payment.");
+        return;
+      }
+
       // Create order
       const { data: order, error: orderError } = await supabase
         .from("orders")
@@ -97,15 +109,28 @@ export default function NFTDetailPage() {
         .single();
       if (orderError) throw orderError;
 
-      // Debit balance
+      // Calculate payment distribution
+      const totalPrice = Number(nft.price);
+      const platformFee = totalPrice * 0.025; // 2.5% platform fee
+      const creatorPayment = totalPrice * 0.975; // 97.5% to creator
+
+      // Debit buyer's balance
       const { error: debitError } = await supabase.rpc("debit_balance", {
         p_user: userId,
-        p_amount: Number(nft.price),
+        p_amount: totalPrice,
         p_ref: order.id,
       });
       if (debitError) throw debitError;
 
-      // Transfer ownership
+      // Credit creator's balance (they can withdraw to their crypto wallet)
+      const { error: creditError } = await supabase.rpc("credit_balance", {
+        p_user: nft.creator_id,
+        p_amount: creatorPayment,
+        p_ref: `sale_${order.id}`,
+      });
+      if (creditError) throw creditError;
+
+      // Transfer NFT ownership
       const { error: transferError } = await supabase
         .from("nfts")
         .update({ owner_id: userId, is_listed: false })
@@ -115,7 +140,16 @@ export default function NFTDetailPage() {
       // Update order status
       await supabase.from("orders").update({ status: "paid" }).eq("id", order.id);
 
-      alert("NFT purchased successfully!");
+      // Log payment distribution for transparency
+      console.log("Payment Distribution:", {
+        totalPrice,
+        platformFee,
+        creatorPayment,
+        creatorWallet: creator.crypto_wallet_address,
+        creatorName: creator.username || creator.full_name
+      });
+
+      alert(`NFT purchased successfully! $${creatorPayment.toFixed(2)} credited to ${creator.username || creator.full_name}'s account.`);
       router.push("/wallet");
     } catch (e: any) {
       alert(`Purchase failed: ${e?.message ?? "Unknown error"}`);

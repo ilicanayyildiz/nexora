@@ -16,6 +16,9 @@ export default function WalletPage() {
   const [connecting, setConnecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [balance, setBalance] = useState<string | null>(null);
+  const [profile, setProfile] = useState<any>(null);
+  const [withdrawAmount, setWithdrawAmount] = useState("");
+  const [withdrawing, setWithdrawing] = useState(false);
 
   useEffect(() => {
     const init = async () => {
@@ -30,6 +33,14 @@ export default function WalletPage() {
       // Get platform balance
       const { data: bal } = await supabase.from('balances').select('amount').single();
       if (bal?.amount !== undefined) setBalance(Number(bal.amount).toFixed(2));
+
+      // Get user profile for crypto wallet info
+      const { data: profileData } = await supabase
+        .from("profiles")
+        .select("crypto_wallet_address, username, full_name")
+        .eq("id", session.user.id)
+        .single();
+      setProfile(profileData);
     };
     void init();
   }, []);
@@ -73,6 +84,41 @@ export default function WalletPage() {
     return `${address.slice(0, 6)}...${address.slice(-4)}`;
   };
 
+  const withdrawToCrypto = async () => {
+    if (!profile?.crypto_wallet_address) {
+      alert("Please set up your crypto wallet address in your profile first.");
+      return;
+    }
+
+    if (!withdrawAmount || Number(withdrawAmount) <= 0) {
+      alert("Please enter a valid withdrawal amount.");
+      return;
+    }
+
+    if (Number(withdrawAmount) > Number(balance)) {
+      alert("Insufficient balance for withdrawal.");
+      return;
+    }
+
+    setWithdrawing(true);
+    try {
+      // Simulate withdrawal to crypto wallet
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      // In real implementation, this would:
+      // 1. Debit user's platform balance
+      // 2. Send crypto to their wallet address
+      // 3. Record transaction in ledger
+      
+      alert(`Withdrawal initiated! $${withdrawAmount} will be sent to ${profile.crypto_wallet_address}`);
+      setWithdrawAmount("");
+    } catch (e: any) {
+      alert(`Withdrawal failed: ${e.message}`);
+    } finally {
+      setWithdrawing(false);
+    }
+  };
+
   return (
     <div className="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-16">
       <div className="mb-8">
@@ -90,10 +136,13 @@ export default function WalletPage() {
             </div>
             <p className="text-white/70 mb-4">Available for NFT purchases</p>
             <div className="flex gap-3">
-              <button className="flex-1 h-10 rounded-lg border border-white/20 text-sm font-medium hover:bg-white/10 transition-colors">
+              <a href="/checkout" className="flex-1 h-10 rounded-lg border border-white/20 text-sm font-medium hover:bg-white/10 transition-colors flex items-center justify-center">
                 💳 Finance
-              </button>
-              <button className="flex-1 h-10 rounded-lg border border-white/20 text-sm font-medium hover:bg-white/10 transition-colors">
+              </a>
+              <button 
+                onClick={() => document.getElementById('withdraw-modal')?.classList.remove('hidden')}
+                className="flex-1 h-10 rounded-lg border border-white/20 text-sm font-medium hover:bg-white/10 transition-colors"
+              >
                 💸 Withdraw
               </button>
             </div>
@@ -239,6 +288,68 @@ export default function WalletPage() {
             <div>
               <div className="font-medium">DeFi Integration</div>
               <div className="text-sm text-white/70">Lend, borrow, and earn with NFTs</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Withdrawal Modal */}
+      <div id="withdraw-modal" className="hidden fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+        <div className="bg-gray-900 rounded-2xl border border-white/10 w-full max-w-md p-6">
+          <div className="flex items-center justify-between mb-6">
+            <h3 className="text-lg font-semibold">Withdraw to Crypto Wallet</h3>
+            <button 
+              onClick={() => document.getElementById('withdraw-modal')?.classList.add('hidden')}
+              className="w-8 h-8 rounded-full border border-white/20 flex items-center justify-center hover:bg-white/10 transition-colors"
+            >
+              ✕
+            </button>
+          </div>
+          
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium mb-2">Withdrawal Amount (USD)</label>
+              <input
+                type="number"
+                value={withdrawAmount}
+                onChange={(e) => setWithdrawAmount(e.target.value)}
+                placeholder="0.00"
+                className="w-full h-12 rounded-lg border border-white/15 bg-transparent px-4 outline-none focus:ring-2 focus:ring-white/20"
+              />
+              <div className="text-xs text-white/60 mt-1">
+                Available: ${balance || '0.00'}
+              </div>
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium mb-2">Destination Wallet</label>
+              <div className="p-3 rounded-lg border border-white/10 bg-white/5">
+                <div className="text-sm font-mono break-all">
+                  {profile?.crypto_wallet_address || "Not set - Please update your profile"}
+                </div>
+                {!profile?.crypto_wallet_address && (
+                  <div className="text-xs text-yellow-400 mt-1">
+                    <a href="/profile/edit" className="underline">Set up your crypto wallet address</a>
+                  </div>
+                )}
+              </div>
+            </div>
+            
+            <div className="flex gap-3 pt-4">
+              <button
+                onClick={() => document.getElementById('withdraw-modal')?.classList.add('hidden')}
+                className="flex-1 h-12 rounded-lg border border-white/20 hover:bg-white/10 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={withdrawToCrypto}
+                disabled={withdrawing || !profile?.crypto_wallet_address || !withdrawAmount}
+                className="flex-1 h-12 rounded-lg font-semibold disabled:opacity-60 disabled:cursor-not-allowed hover:opacity-90 transition-colors"
+                style={{ backgroundColor: 'var(--accent)', color: '#000' }}
+              >
+                {withdrawing ? "Processing..." : "Withdraw"}
+              </button>
             </div>
           </div>
         </div>

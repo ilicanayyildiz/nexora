@@ -16,6 +16,9 @@ type Profile = {
   username: string | null;
   full_name: string | null;
   avatar_url: string | null;
+  crypto_wallet_address: string | null;
+  preferred_payment_method: string | null;
+  is_kyc_verified: boolean;
 };
 
 type Collection = {
@@ -171,6 +174,29 @@ export default function DashboardPage() {
       // Ensure profile exists to satisfy FK (creator_id -> profiles.id)
       await ensureProfile();
 
+      // Check if user has crypto wallet address set up
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("crypto_wallet_address, username, full_name")
+        .eq("id", userId)
+        .single();
+
+      if (!profile?.crypto_wallet_address) {
+        const confirm = window.confirm(
+          `⚠️ Warning: You haven't set up your crypto wallet address yet.\n\n` +
+          `Without a wallet address, you won't be able to receive payments when your NFTs are sold.\n\n` +
+          `Would you like to:\n` +
+          `1. Continue creating collection (you can set up your wallet later)\n` +
+          `2. Go to profile settings to add your wallet address first\n\n` +
+          `Click OK to continue, or Cancel to go to profile settings.`
+        );
+        
+        if (!confirm) {
+          window.location.href = "/profile/edit";
+          return;
+        }
+      }
+
       let finalImageUrl = imageUrl || null;
       let finalBannerUrl = bannerUrl || null;
 
@@ -300,7 +326,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Profile */}
+      {/* Profile & Wallet */}
       <section className="mt-10 grid gap-4 md:grid-cols-3">
         <div className="rounded-2xl border border-white/10 p-6">
           <h2 className="text-lg font-semibold">Profile</h2>
@@ -311,6 +337,36 @@ export default function DashboardPage() {
             <div className="font-medium">{profile?.full_name ?? "—"}</div>
             <div className="mt-3 text-white/80">User ID</div>
             <div className="font-mono text-xs break-all">{userId}</div>
+          </div>
+        </div>
+
+        {/* Wallet Information */}
+        <div className="rounded-2xl border border-white/10 p-6">
+          <h2 className="text-lg font-semibold">Wallet</h2>
+          <div className="mt-4 text-sm space-y-3">
+            <div>
+              <div className="text-white/80">Crypto Address</div>
+              <div className="font-mono text-xs break-all bg-white/5 p-2 rounded mt-1">
+                {profile?.crypto_wallet_address || "Not set"}
+              </div>
+            </div>
+            <div>
+              <div className="text-white/80">Payment Method</div>
+              <div className="font-medium">
+                {profile?.preferred_payment_method ? 
+                  profile.preferred_payment_method.toUpperCase() : "Not set"}
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="text-white/80">KYC Status</div>
+              <div className={`px-2 py-1 rounded text-xs ${
+                profile?.is_kyc_verified 
+                  ? 'bg-green-500/20 text-green-400' 
+                  : 'bg-yellow-500/20 text-yellow-400'
+              }`}>
+                {profile?.is_kyc_verified ? 'Verified' : 'Not Verified'}
+              </div>
+            </div>
           </div>
         </div>
 

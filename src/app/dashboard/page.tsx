@@ -80,10 +80,10 @@ export default function DashboardPage() {
         });
       } catch {}
 
-      // Load profile
+      // Load profile (including wallet/payment fields)
       const { data: profileData } = await supabase
         .from("profiles")
-        .select("id, username, full_name, avatar_url")
+        .select("id, username, full_name, avatar_url, crypto_wallet_address, preferred_payment_method, is_kyc_verified")
         .eq("id", session.user.id)
         .single();
       setProfile((profileData as Profile) ?? null);

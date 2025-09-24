@@ -14,11 +14,16 @@ export default function CheckoutPage() {
   const [paymentToken, setPaymentToken] = useState<'ETH' | 'USDC' | 'USDT'>('USDC');
   const [showIframe, setShowIframe] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const [paymentMethod, setPaymentMethod] = useState<'crypto' | 'web3' | 'card' | 'bank'>('crypto');
+  const [paymentMethod, setPaymentMethod] = useState<'crypto' | 'web3' | 'card'>('crypto');
   const [walletConnected, setWalletConnected] = useState(false);
   const [walletAddress, setWalletAddress] = useState<string | null>(null);
   const [walletType, setWalletType] = useState<string | null>(null);
   const iframeBaseUrl = process.env.NEXT_PUBLIC_CRYPTO_IFRAME_URL || 'https://example.com/payment';
+  // Card modal state
+  const [cardNumber, setCardNumber] = useState("");
+  const [cardExpiry, setCardExpiry] = useState("");
+  const [cardCvv, setCardCvv] = useState("");
+  const [cardHolder, setCardHolder] = useState("");
 
   useEffect(() => {
     const init = async () => {
@@ -61,6 +66,21 @@ export default function CheckoutPage() {
     return amt > 0;
   }, [amount]);
 
+  const isCardValid = useMemo(() => {
+    if (paymentMethod !== 'card') return true;
+    const num = cardNumber.replace(/\s+/g, '');
+    const cvv = cardCvv.trim();
+    const exp = cardExpiry.trim();
+    const holder = cardHolder.trim();
+    return (
+      isValid &&
+      num.length >= 12 &&
+      /^(0[1-9]|1[0-2])\/(\d{2})$/.test(exp) &&
+      cvv.length >= 3 &&
+      holder.length >= 3
+    );
+  }, [paymentMethod, cardNumber, cardCvv, cardExpiry, cardHolder, isValid]);
+
   const getTokenInfo = (token: string) => {
     const tokens = {
       ETH: { name: 'Ethereum', symbol: 'ETH', decimals: 18, icon: '⟠' },
@@ -74,10 +94,11 @@ export default function CheckoutPage() {
   const connectWallet = async (wallet: 'metamask' | 'walletconnect' | 'coinbase') => {
     try {
       if (wallet === 'metamask') {
-        if (!window.ethereum) {
+        const w = (window as any);
+        if (!w.ethereum) {
           throw new Error('MetaMask not installed');
         }
-        const accounts = await window.ethereum.request({
+        const accounts = await w.ethereum.request({
           method: 'eth_requestAccounts'
         });
         setWalletAddress(accounts[0]);
@@ -142,17 +163,18 @@ export default function CheckoutPage() {
         // Open iframe for crypto payment provider
         setShowIframe(true);
         setProcessing(false);
+      } else if (paymentMethod === 'card') {
+        // Process card inline
+        await submitCardPayment();
       } else {
-        // Card/Bank payment simulation
+        // Bank payment simulation
         await new Promise(resolve => setTimeout(resolve, 2000));
-        
         const ref = `${paymentMethod}_${Date.now()}`;
         const { error } = await supabase.rpc("credit_balance", {
           p_user: userId,
           p_amount: Number(amount),
           p_ref: ref,
         });
-        
         if (error) {
           setPayError(error.message);
         } else {
@@ -165,6 +187,44 @@ export default function CheckoutPage() {
       }
     } catch (e: unknown) {
       setPayError((e as Error)?.message ?? "Payment failed");
+      setProcessing(false);
+    }
+  };
+
+  const submitCardPayment = async () => {
+    if (!userId) return;
+    setProcessing(true);
+    setPayError(null);
+    try {
+      // Very light client-side validation/masking
+      const num = cardNumber.replace(/\s+/g, '');
+      const cvv = cardCvv.trim();
+      const exp = cardExpiry.trim();
+      if (num.length < 12 || cvv.length < 3 || !/^(0[1-9]|1[0-2])\/(\d{2})$/.test(exp) || cardHolder.trim().length < 3) {
+        setPayError('Please enter valid card details');
+        setProcessing(false);
+        return;
+      }
+
+      // Simulate processing
+      await new Promise(r => setTimeout(r, 1500));
+      const ref = `card_${Date.now()}`;
+      const { error } = await supabase.rpc("credit_balance", {
+        p_user: userId,
+        p_amount: Number(amount),
+        p_ref: ref,
+      });
+      if (error) {
+        setPayError(error.message);
+      } else {
+        setPayMessage(`Payment successful! $${amount} USD via CARD received and balance credited.`);
+        setTimeout(() => {
+          window.location.href = '/dashboard';
+        }, 1500);
+      }
+    } catch (e: unknown) {
+      setPayError((e as Error)?.message ?? 'Payment failed');
+    } finally {
       setProcessing(false);
     }
   };
@@ -236,8 +296,7 @@ export default function CheckoutPage() {
               {[
                 { key: 'crypto', label: 'Crypto', icon: '₿' },
                 { key: 'web3', label: 'Web3', icon: '🔗' },
-                { key: 'card', label: 'Card', icon: '💳' },
-                { key: 'bank', label: 'Bank', icon: '🏦' }
+                { key: 'card', label: 'Card', icon: '💳' }
               ].map((method) => (
                 <button
                   key={method.key}
@@ -356,13 +415,68 @@ export default function CheckoutPage() {
 
               {payError && <div className="md:col-span-2 text-sm text-red-400">{payError}</div>}
               {payMessage && <div className="md:col-span-2 text-sm text-emerald-400">{payMessage}</div>}
+
+              {/* Inline Card Form */}
+              {paymentMethod === 'card' && (
+                <div className="md:col-span-2 p-4 rounded-lg border border-white/10 bg-white/5">
+                  <div className="grid gap-4">
+                    <label className="grid gap-1 text-sm">
+                      <span>Card Number</span>
+                      <input
+                        value={cardNumber}
+                        onChange={(e) => setCardNumber(e.target.value.replace(/[^0-9\\s]/g, ''))}
+                        placeholder="1234 5678 9012 3456"
+                        inputMode="numeric"
+                        className="h-10 rounded-md border border-white/15 bg-transparent px-3 outline-none focus:ring-2 focus:ring-white/20"
+                      />
+                    </label>
+                    <div className="grid grid-cols-2 gap-3">
+                      <label className="grid gap-1 text-sm">
+                        <span>Expiry Date</span>
+                        <input
+                          value={cardExpiry}
+                          onChange={(e) => {
+                            const v = e.target.value.replace(/[^0-9]/g, '').slice(0, 4);
+                            const mm = v.slice(0, 2);
+                            const yy = v.slice(2, 4);
+                            setCardExpiry(mm.length === 2 ? `${mm}/${yy}` : mm);
+                          }}
+                          placeholder="MM/YY"
+                          inputMode="numeric"
+                          className="h-10 rounded-md border border-white/15 bg-transparent px-3 outline-none focus:ring-2 focus:ring-white/20"
+                        />
+                      </label>
+                      <label className="grid gap-1 text-sm">
+                        <span>CVV</span>
+                        <input
+                          value={cardCvv}
+                          onChange={(e) => setCardCvv(e.target.value.replace(/[^0-9]/g, '').slice(0, 4))}
+                          placeholder="123"
+                          inputMode="numeric"
+                          className="h-10 rounded-md border border-white/15 bg-transparent px-3 outline-none focus:ring-2 focus:ring-white/20"
+                        />
+                      </label>
+                    </div>
+                    <label className="grid gap-1 text-sm">
+                      <span>Cardholder Name</span>
+                      <input
+                        value={cardHolder}
+                        onChange={(e) => setCardHolder(e.target.value)}
+                        placeholder="John Doe"
+                        className="h-10 rounded-md border border-white/15 bg-transparent px-3 outline-none focus:ring-2 focus:ring-white/20"
+                      />
+                    </label>
+                    <div className="text-xs text-white/60 flex items-center gap-2"><span>🔒</span> Your payment information is secure and encrypted.</div>
+                  </div>
+                </div>
+              )}
               <button 
                 onClick={onPay} 
                 disabled={
                   !isValid || 
                   processing || 
                   (paymentMethod === 'crypto' && !iframeBaseUrl) ||
-                  (paymentMethod === 'web3' && !walletConnected)
+                  (paymentMethod === 'web3' && !walletConnected) || (paymentMethod === 'card' && !isCardValid)
                 } 
                 className="md:col-span-2 h-11 rounded-md px-4 font-semibold text-black disabled:opacity-60 disabled:cursor-not-allowed hover:opacity-90" 
                 style={{ backgroundColor: 'var(--accent)' }}
@@ -425,6 +539,8 @@ export default function CheckoutPage() {
           </div>
         </div>
       )}
+
+      {/* Card modal removed – card form is inline above the Pay button */}
     </div>
   );
 }
